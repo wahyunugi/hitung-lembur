@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c2321">
+<title>Hitung Lembur</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lembur">
+<style>
+:root{
+  --bg:#eef0ee;--card:#ffffff;--ink:#1c2321;--muted:#5d6864;--line:#d3d8d5;
+  --accent:#f2b705;--accent-ink:#1c2321;--soft:#f6f7f5;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#141917;--card:#1d2421;--ink:#e8ece9;--muted:#9aa6a1;--line:#323c38;
+  --accent:#f5c235;--accent-ink:#141917;--soft:#232b28;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;
+  padding:max(20px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(32px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-size:1.7rem;line-height:1.1;margin:0;font-weight:800;letter-spacing:-.01em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.label{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-weight:600}
+.money{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden}
+.money span{padding:0 10px;color:var(--muted);font-family:var(--mono)}
+.money input{flex:1;min-width:0;border:0;padding:10px 10px 10px 0;font:inherit;font-family:var(--mono);font-size:1.05rem;background:transparent;color:var(--ink)}
+.reset{align-self:flex-start;background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:.85rem;text-decoration:underline;cursor:pointer}
+.stepper{display:grid;grid-template-columns:56px 1fr 56px;gap:8px}
+.stepper button{font-size:1.6rem;font-weight:600;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer}
+.stepper input{width:100%;min-width:0;text-align:center;font-family:var(--mono);font-size:2rem;font-weight:700;border:2px solid var(--ink);border-radius:10px;padding:8px;background:var(--card);color:var(--ink)}
+.result{background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:14px 16px}
+.result .label{color:inherit;opacity:.8}
+.big{font-family:var(--mono);font-size:2.1rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.break{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:.95rem;font-variant-numeric:tabular-nums}
+.break span:nth-child(even){font-family:var(--mono);text-align:right;white-space:nowrap}
+.break .tot{border-top:1px solid var(--line);padding-top:6px;font-weight:700}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Hitung Lembur</h1>
+
+  <section class="card">
+    <div class="label">Bayaran</div>
+    <div class="field">
+      <label for="r1">Jam pertama</label>
+      <div class="money"><span>Rp</span><input id="r1" type="number" inputmode="numeric" min="0" step="100"></div>
+    </div>
+    <div class="field">
+      <label for="r2">Jam kedua dan selanjutnya (per jam)</label>
+      <div class="money"><span>Rp</span><input id="r2" type="number" inputmode="numeric" min="0" step="100"></div>
+    </div>
+    <button class="reset" id="reset" type="button">Kembalikan ke nominal awal</button>
+  </section>
+
+  <section class="card">
+    <label class="label" for="jam">Jam lembur</label>
+    <div class="stepper">
+      <button type="button" id="minus" aria-label="Kurangi 1 jam">−</button>
+      <input id="jam" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="3">
+      <button type="button" id="plus" aria-label="Tambah 1 jam">+</button>
+    </div>
+    <div class="result">
+      <div class="label">Lemburan</div>
+      <div class="big" id="hasil">Rp 0</div>
+    </div>
+    <div class="label">Detail perhitungan</div>
+    <div class="break" id="rincian"></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var DEF={r1:44800,r2:59800}, KEY="hitung-lembur-tarif";
+  var $=function(id){return document.getElementById(id);};
+  var num=function(n){return Number(n).toLocaleString("id-ID",{maximumFractionDigits:2});};
+
+  function hitung(jam,r1,r2){
+    jam=Number(jam);
+    if(!isFinite(jam)||jam<=0)return{p1:0,p2:0,a:0,b:0,total:0};
+    var p1=Math.min(jam,1), p2=Math.max(jam-1,0);
+    var a=Math.round(p1*r1), b=Math.round(p2*r2);
+    return{p1:p1,p2:p2,a:a,b:b,total:a+b};
+  }
+
+  var saved=null;
+  try{saved=JSON.parse(localStorage.getItem(KEY)||"null");}catch(e){}
+  $("r1").value=(saved&&isFinite(saved.r1))?saved.r1:DEF.r1;
+  $("r2").value=(saved&&isFinite(saved.r2))?saved.r2:DEF.r2;
+
+  function rate(id){var v=Number($(id).value);return isFinite(v)&&v>=0?v:0;}
+
+  var jamTerakhir="3";
+  function sah(s){return /^[0-9]{0,2}$/.test(s)&&(s===""||Number(s)<=24);}
+  function jamBulat(){
+    var el=$("jam"), v=el.value;
+    if(!sah(v)){
+      var depan=v.split(/[.,]/)[0].replace(/[^0-9]/g,"");
+      v=(v.length>jamTerakhir.length+1&&sah(depan))?depan:jamTerakhir;
+      el.value=v;
+    }
+    jamTerakhir=v;
+    return v===""?0:Number(v);
+  }
+
+  function render(){
+    var r1=rate("r1"), r2=rate("r2"), h=hitung(jamBulat(),r1,r2);
+    $("hasil").textContent="Rp "+num(h.total);
+    $("rincian").innerHTML=
+      "<span>Jam pertama: "+num(h.p1)+" × "+num(r1)+"</span><span>"+num(h.a)+"</span>"+
+      "<span>Jam kedua dst: "+num(h.p2)+" × "+num(r2)+"</span><span>"+num(h.b)+"</span>"+
+      "<span class='tot'>Total</span><span class='tot'>Rp "+num(h.total)+"</span>";
+  }
+  function saveRates(){
+    try{localStorage.setItem(KEY,JSON.stringify({r1:rate("r1"),r2:rate("r2")}));}catch(e){}
+    render();
+  }
+  function step(d){
+    var v=jamBulat();
+    v=Math.max(0,Math.min(24,v+d));
+    $("jam").value=v; render();
+  }
+
+  $("r1").addEventListener("input",saveRates);
+  $("r2").addEventListener("input",saveRates);
+  $("reset").addEventListener("click",function(){$("r1").value=DEF.r1;$("r2").value=DEF.r2;saveRates();});
+  $("jam").addEventListener("input",render);
+  $("minus").addEventListener("click",function(){step(-1);});
+  $("plus").addEventListener("click",function(){step(1);});
+  render();
+})();
+if("serviceWorker" in navigator&&location.protocol!=="file:"){
+  window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});
+}
+</script>
+</body>
+</html>
